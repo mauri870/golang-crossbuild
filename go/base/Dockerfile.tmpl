@@ -18,6 +18,7 @@ RUN apt-get -o Acquire::Check-Valid-Until=false update -y --no-install-recommend
             file \
             flex \
             bison \
+            wget \
 {{- if or (eq .DEBIAN_VERSION "10") (eq .DEBIAN_VERSION "11") (eq .DEBIAN_VERSION "12")}}
             binutils-multiarch \
             binutils-multiarch-dev \
@@ -30,6 +31,23 @@ RUN apt-get -o Acquire::Check-Valid-Until=false update -y --no-install-recommend
 {{- if eq .DEBIAN_VERSION "10"}}
 RUN ln -s /usr/bin/pip3 /usr/bin/pip
 {{- end }}
+
+# Install zig for cross-compilation
+ARG ZIG_PLATFORM=linux-x86_64
+ARG ZIG_VERSION=0.14.0
+ARG ZIG_URL=https://ziglang.org/download/${ZIG_VERSION}/zig-${ZIG_PLATFORM}-${ZIG_VERSION}.tar.xz
+
+RUN mkdir -p /usr/local/zig && \
+  wget -qO- "$ZIG_URL" | tar --strip-components=1 -xJf - -C /usr/local/zig && \
+  printf '#!/bin/bash\nexec zig cc "$@"\n' > /usr/local/zig/zigcc && \
+  printf '#!/bin/bash\nexec zig c++ "$@"\n' > /usr/local/zig/zigc++ && \
+  chmod +x /usr/local/zig/zig* && \
+  update-alternatives --install /usr/bin/cc cc /usr/local/zig/zigcc 100 && \
+  update-alternatives --install /usr/bin/c++ c++ /usr/local/zig/zigc++ 100
+ENV PATH="/usr/local/zig:$PATH"
+RUN zig version && \
+    zigcc --version && \
+    zigc++ --version
 
 ARG GOLANG_VERSION=1.24.2
 {{- if eq .FIPS "true"}}
